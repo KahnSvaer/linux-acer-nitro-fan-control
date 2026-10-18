@@ -9,6 +9,7 @@ Provides tachometer gauges, real-time thermal telemetry, and hardware-safe fan c
 import math
 import os
 import sys
+import time
 
 from PyQt6.QtCore import QPointF, QRectF, Qt, QTimer
 from PyQt6.QtGui import (
@@ -55,12 +56,14 @@ class CircularFanGauge(QWidget):
         self.is_active = True
         self.setMinimumSize(220, 240)
 
-        # Smooth needle animation timer (30 FPS)
+        # Responsive needle animation timer (40 FPS)
         self.anim_timer = QTimer(self)
         self.anim_timer.timeout.connect(self._animate_step)
-        self.anim_timer.start(33)
+        self.anim_timer.start(25)
 
     def set_data(self, rpm: int, temp: int, is_active: bool = True):
+        if rpm > self.max_rpm:
+            self.max_rpm = rpm
         self.current_rpm = max(0, min(self.max_rpm, rpm))
         self.temp_val = temp
         self.is_active = is_active
@@ -71,8 +74,8 @@ class CircularFanGauge(QWidget):
 
     def _animate_step(self):
         diff = self.current_rpm - self.display_rpm
-        if abs(diff) > 1:
-            self.display_rpm += diff * 0.15
+        if abs(diff) > 2:
+            self.display_rpm += diff * 0.35
             self.update()
         elif self.display_rpm != self.current_rpm:
             self.display_rpm = float(self.current_rpm)
@@ -264,10 +267,10 @@ class NitroFanWindow(QMainWindow):
         self._init_theme()
         self._init_ui()
 
-        # Telemetry update timer (1000ms)
+        # High-speed live telemetry update timer (200ms = 5 updates/sec)
         self.poll_timer = QTimer(self)
         self.poll_timer.timeout.connect(self._update_telemetry)
-        self.poll_timer.start(1000)
+        self.poll_timer.start(200)
         self._update_telemetry()
 
     def _init_theme(self):
@@ -329,7 +332,7 @@ class NitroFanWindow(QMainWindow):
         model_label.setFont(QFont("Arial", 9, QFont.Weight.Bold))
         model_label.setStyleSheet("color: #7A8090; letter-spacing: 1px;")
 
-        self.driver_badge = QLabel("● DRIVER ACTIVE")
+        self.driver_badge = QLabel("● LIVE (5 Hz)")
         self.driver_badge.setFont(QFont("Arial", 9, QFont.Weight.Bold))
         self.driver_badge.setStyleSheet("color: #00FF66; letter-spacing: 0.5px;")
 
@@ -637,13 +640,13 @@ class NitroFanWindow(QMainWindow):
         self._update_telemetry()
 
     def _update_telemetry(self):
-        t = read_telemetry()
+        t = read_telemetry(force_profile=False)
         if not t["driver_loaded"]:
             self.driver_badge.setText("● DRIVER OFFLINE")
             self.driver_badge.setStyleSheet("color: #FF3333;")
             return
 
-        # Update gauges
+        # Update gauges with live telemetry
         self.cpu_gauge.set_data(t["cpu_rpm"], t["cpu_temp"], True)
         self.gpu_gauge.set_data(t["gpu_rpm"], t["gpu_temp"], t["gpu_temp"] > 0)
 
@@ -656,7 +659,8 @@ class NitroFanWindow(QMainWindow):
             self.active_mode = "auto"
             self._update_button_styles()
 
-        self.status_footer.setText(f"Active Mode: {mode_str} | Platform Profile: {t['profile']} | Driver: Active")
+        lat = t.get("latency_ms", 2.0)
+        self.status_footer.setText(f"Active Mode: {mode_str} | Telemetry: {lat:.1f}ms latency (5 Hz Live) | Profile: {t['profile']}")
 
         # Hardware Thermal Safeguard:
         # If CPU or GPU temperature reaches dangerous threshold (>= 88°C CPU or >= 85°C GPU)
