@@ -679,7 +679,7 @@ class NitroFanWindow(QMainWindow):
             self._update_button_styles()
 
         lat = t.get("latency_ms", 2.0)
-        self.status_footer.setText(f"Active Mode: {mode_str} | Telemetry: {lat:.1f}ms latency (5 Hz Live) | Profile: {t['profile']}")
+        self.status_footer.setText(f"Mode: {mode_str} | {lat:.1f}ms (5 Hz) | Profile: {t['profile']}")
 
         # Hardware Thermal Safeguard:
         # If CPU or GPU temperature reaches dangerous threshold (>= 88°C CPU or >= 85°C GPU)

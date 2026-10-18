@@ -60,12 +60,18 @@ Launch the interface via terminal or your desktop app menu:
 nitrofan gui
 ```
 
+<p align="center">
+  <img src="assets/ui_preview.png" alt="Fan Control Center UI" width="550">
+</p>
+
 Features:
-- Real-time CPU & GPU Fan RPM readouts
-- Circular tachometers with 30 FPS smooth needle animation
-- Hardware thermal protection watchdog
-- One-click presets: **Auto**, **Quiet (40%)**, **Balanced (60%)**, **Heavy Load (80%)**, and **Max Turbo (100%)**
-- Dual sliders for independent or synchronized CPU and GPU fan percentage tuning
+- **Real-Time Dual Speedometers**: Dynamic live circular tachometers with clean 10% interval scale marks.
+- **Ultra-Fast Telemetry**: High-frequency 5 Hz (200ms) live hardware polling with ~2ms read latency.
+- **Responsive 40 FPS Needle Physics**: Smooth needle animations tracking live RPM changes without delay.
+- **Hardware Thermal Safeguard**: Automatic elevation to protect silicon if temperatures exceed critical thresholds (≥ 88°C).
+- **One-Click Presets**: **Auto**, **Quiet (40%)**, **Balanced (60%)**, **Heavy Load (80%)**, and **Max Turbo (100%)**.
+- **Synchronized or Independent Tuning**: Dual interactive sliders with linked or split fan control.
+- **System Tray & Side Dock Integration**: Displays custom cooling icon in your application launcher and tray.
 
 ---
 
@@ -74,7 +80,8 @@ Features:
 ```text
 Linux-NitroSense/
 ├── assets/
-│   └── nitrofan.svg         # Generic vector fan icon
+│   ├── nitrofan.svg         # Generic vector fan icon
+│   └── ui_preview.png       # Graphical interface preview screenshot
 ├── bin/
 │   └── nitrofan             # Unified CLI & GUI launcher
 ├── cli/
