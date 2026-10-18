@@ -1,20 +1,31 @@
 #!/usr/bin/env python3
 """
-Nitro-Fan GUI
--------------
-Modern, dark-themed PyQt6 interface for Acer Nitro fan control.
-100% focused on fan speeds, thermal monitoring, and cooling performance.
+Nitro-Fan GUI (NitroSense Edition)
+----------------------------------
+A high-fidelity Acer NitroSense desktop interface for Linux.
+Provides custom circular speedometers, live telemetry, and intuitive fan controls.
 """
 
+import math
 import os
 import sys
-from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QColor, QFont, QPalette
+
+from PyQt6.QtCore import QPointF, QRectF, Qt, QTimer
+from PyQt6.QtGui import (
+    QBrush,
+    QColor,
+    QFont,
+    QLinearGradient,
+    QPainter,
+    QPalette,
+    QPen,
+    QRadialGradient,
+)
 from PyQt6.QtWidgets import (
     QApplication,
+    QCheckBox,
     QFrame,
     QGridLayout,
-    QGroupBox,
     QHBoxLayout,
     QLabel,
     QMainWindow,
@@ -24,349 +35,569 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-# Add parent directory to path to import CLI telemetry helpers
+# Add parent directory for CLI telemetry functions
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from cli.nitro_fan import is_driver_loaded, read_telemetry, set_fan_speed
+from cli.nitro_fan import is_driver_loaded, read_telemetry, set_fan_speed, PLATFORM_PROFILE
 
-class MetricCard(QFrame):
-    """Custom styled metric display card."""
-    def __init__(self, title, unit="RPM", color="#FF3333"):
-        super().__init__()
-        self.unit = unit
-        self.setFrameShape(QFrame.Shape.StyledPanel)
-        self.setStyleSheet(f"""
-            MetricCard {{
-                background-color: #1A1A1A;
-                border: 1px solid #2D2D2D;
-                border-radius: 12px;
-                padding: 12px;
-            }}
-            MetricCard:hover {{
-                border: 1px solid {color};
-            }}
-        """)
-        
-        layout = QVBoxLayout(self)
-        layout.setSpacing(4)
-        layout.setContentsMargins(12, 12, 12, 12)
-        
-        self.title_label = QLabel(title)
-        self.title_label.setStyleSheet("color: #888888; font-size: 13px; font-weight: bold; text-transform: uppercase;")
-        
-        self.value_label = QLabel(f"0 {unit}")
-        self.value_label.setStyleSheet(f"color: #FFFFFF; font-size: 26px; font-weight: bold;")
-        
-        self.sub_label = QLabel("Active")
-        self.sub_label.setStyleSheet("color: #555555; font-size: 11px;")
-        
-        layout.addWidget(self.title_label)
-        layout.addWidget(self.value_label)
-        layout.addWidget(self.sub_label)
+class CircularFanGauge(QWidget):
+    """
+    Custom-drawn Circular Tachometer Gauge matching Acer NitroSense.
+    Renders anti-aliased circular progress arcs, RPM readouts, and temperature badges.
+    """
+    def __init__(self, title="CPU FAN", max_rpm=7000, parent=None):
+        super().__init__(parent)
+        self.title = title
+        self.max_rpm = max_rpm
+        self.current_rpm = 0
+        self.display_rpm = 0.0
+        self.temp_val = 0
+        self.temp_text = "0 °C"
+        self.is_active = True
+        self.setMinimumSize(220, 240)
 
-    def set_value(self, val, subtext=None, color=None):
-        self.value_label.setText(f"{val} {self.unit}")
-        if color:
-            self.value_label.setStyleSheet(f"color: {color}; font-size: 26px; font-weight: bold;")
-        if subtext:
-            self.sub_label.setText(subtext)
+        # Smooth needle animation timer (30 FPS)
+        self.anim_timer = QTimer(self)
+        self.anim_timer.timeout.connect(self._animate_step)
+        self.anim_timer.start(33)
 
-class NitroWindow(QMainWindow):
+    def set_data(self, rpm: int, temp: int, is_active: bool = True):
+        self.current_rpm = max(0, min(self.max_rpm, rpm))
+        self.temp_val = temp
+        self.is_active = is_active
+        if not is_active or temp <= 0:
+            self.temp_text = "STANDBY"
+        else:
+            self.temp_text = f"{temp} °C"
+
+    def _animate_step(self):
+        diff = self.current_rpm - self.display_rpm
+        if abs(diff) > 1:
+            self.display_rpm += diff * 0.15
+            self.update()
+        elif self.display_rpm != self.current_rpm:
+            self.display_rpm = float(self.current_rpm)
+            self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        w = self.width()
+        h = self.height()
+        size = min(w, h - 35)
+        cx = w / 2.0
+        cy = size / 2.0 + 5.0
+        radius = size / 2.0 - 14.0
+
+        # Draw outer subtle metallic ring
+        outer_pen = QPen(QColor(40, 42, 50), 2)
+        painter.setPen(outer_pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawEllipse(QPointF(cx, cy), radius + 6, radius + 6)
+
+        # Draw inner face with radial gradient
+        radial = QRadialGradient(QPointF(cx, cy), radius)
+        radial.setColorAt(0.0, QColor(24, 25, 30))
+        radial.setColorAt(0.85, QColor(16, 17, 21))
+        radial.setColorAt(1.0, QColor(10, 11, 14))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(radial))
+        painter.drawEllipse(QPointF(cx, cy), radius, radius)
+
+        # Gauge arc coordinates: 270 degree sweep from 135 deg to 405 deg
+        arc_rect = QRectF(cx - radius + 4, cy - radius + 4, (radius - 4) * 2, (radius - 4) * 2)
+        start_angle = 225.0  # Qt 3 o'clock is 0; 225 deg starts at bottom-left (135 in standard polar)
+        total_span = -270.0  # Clockwise sweep
+
+        # Background track arc
+        track_pen = QPen(QColor(35, 38, 46), 8, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap)
+        painter.setPen(track_pen)
+        painter.drawArc(arc_rect, int(start_angle * 16), int(total_span * 16))
+
+        # Active value arc
+        ratio = max(0.0, min(1.0, self.display_rpm / self.max_rpm))
+        active_span = total_span * ratio
+
+        if ratio > 0.01:
+            active_pen = QPen()
+            active_pen.setWidth(8)
+            active_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+
+            # Gradient from orange-red to hot crimson
+            grad = QLinearGradient(arc_rect.topLeft(), arc_rect.bottomRight())
+            if ratio < 0.5:
+                grad.setColorAt(0.0, QColor(255, 80, 20))
+                grad.setColorAt(1.0, QColor(255, 30, 30))
+            else:
+                grad.setColorAt(0.0, QColor(255, 40, 40))
+                grad.setColorAt(1.0, QColor(230, 0, 15))
+            active_pen.setBrush(QBrush(grad))
+            painter.setPen(active_pen)
+            painter.drawArc(arc_rect, int(start_angle * 16), int(active_span * 16))
+
+        # Perimeter tick marks
+        painter.save()
+        painter.translate(cx, cy)
+        painter.rotate(45)  # Align with start angle
+        for i in range(11):
+            tick_pen = QPen(QColor(70, 75, 90) if i % 2 == 0 else QColor(45, 48, 58), 1.5 if i % 2 == 0 else 1)
+            painter.setPen(tick_pen)
+            painter.drawLine(int(radius - 10), 0, int(radius - 5), 0)
+            painter.rotate(27)
+        painter.restore()
+
+        # Center Text: Title
+        painter.setPen(QColor(160, 165, 180))
+        font_title = QFont("Arial", 10, QFont.Weight.Bold)
+        font_title.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 1.0)
+        painter.setFont(font_title)
+        painter.drawText(QRectF(cx - 80, cy - 42, 160, 20), Qt.AlignmentFlag.AlignCenter, self.title)
+
+        # Center Text: Large RPM Value
+        painter.setPen(QColor(255, 255, 255))
+        font_rpm = QFont("Arial", 22, QFont.Weight.Bold)
+        painter.setFont(font_rpm)
+        rpm_str = f"{int(self.display_rpm):,}"
+        painter.drawText(QRectF(cx - 90, cy - 18, 180, 36), Qt.AlignmentFlag.AlignCenter, rpm_str)
+
+        # Center Text: "RPM" Unit
+        painter.setPen(QColor(110, 115, 130))
+        font_unit = QFont("Arial", 9, QFont.Weight.Bold)
+        painter.setFont(font_unit)
+        painter.drawText(QRectF(cx - 50, cy + 18, 100, 18), Qt.AlignmentFlag.AlignCenter, "RPM")
+
+        # Bottom Temperature Pill
+        pill_w = 110.0
+        pill_h = 26.0
+        pill_x = cx - pill_w / 2.0
+        pill_y = cy + radius - 6.0
+        pill_rect = QRectF(pill_x, pill_y, pill_w, pill_h)
+
+        # Pill background
+        painter.setPen(QPen(QColor(45, 48, 58), 1))
+        painter.setBrush(QBrush(QColor(22, 24, 29)))
+        painter.drawRoundedRect(pill_rect, 13.0, 13.0)
+
+        # Temperature status dot
+        if not self.is_active or self.temp_val <= 0:
+            dot_color = QColor(100, 100, 100)
+        elif self.temp_val < 60:
+            dot_color = QColor(0, 230, 115)
+        elif self.temp_val < 78:
+            dot_color = QColor(255, 190, 0)
+        else:
+            dot_color = QColor(255, 40, 40)
+
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(dot_color))
+        painter.drawEllipse(QPointF(pill_x + 16, pill_y + 13), 4, 4)
+
+        # Pill Text
+        painter.setPen(QColor(240, 240, 240))
+        font_temp = QFont("Arial", 9, QFont.Weight.Bold)
+        painter.setFont(font_temp)
+        painter.drawText(QRectF(pill_x + 24, pill_y, pill_w - 28, pill_h), Qt.AlignmentFlag.AlignCenter, self.temp_text)
+
+        painter.end()
+
+
+class NitroSenseWindow(QMainWindow):
+    """
+    Main NitroSense UI Window.
+    Replicates the signature Acer gaming aesthetic with high contrast, brushed metal cards,
+    and responsive hardware control buttons.
+    """
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Acer Nitro Fan Management")
-        self.setFixedSize(560, 680)
-        
-        self._setup_theme()
-        self._init_ui()
-        
-        # Live telemetry timer (1000ms)
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.update_telemetry)
-        self.timer.start(1000)
-        self.update_telemetry()
+        self.setWindowTitle("NitroSense™")
+        self.setFixedSize(620, 720)
+        self.active_mode = "auto"
+        self.sync_fans = True
 
-    def _setup_theme(self):
-        palette = QPalette()
-        palette.setColor(QPalette.ColorRole.Window, QColor(18, 18, 18))
-        palette.setColor(QPalette.ColorRole.WindowText, QColor(240, 240, 240))
-        palette.setColor(QPalette.ColorRole.Base, QColor(25, 25, 25))
-        palette.setColor(QPalette.ColorRole.AlternateBase, QColor(35, 35, 35))
-        palette.setColor(QPalette.ColorRole.Text, QColor(255, 255, 255))
-        palette.setColor(QPalette.ColorRole.Button, QColor(32, 32, 32))
-        palette.setColor(QPalette.ColorRole.ButtonText, QColor(255, 255, 255))
-        palette.setColor(QPalette.ColorRole.Highlight, QColor(229, 9, 20))
-        palette.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
-        self.setPalette(palette)
+        self._init_theme()
+        self._init_ui()
+
+        # Telemetry update timer (1000ms)
+        self.poll_timer = QTimer(self)
+        self.poll_timer.timeout.connect(self._update_telemetry)
+        self.poll_timer.start(1000)
+        self._update_telemetry()
+
+    def _init_theme(self):
+        self.setStyleSheet("""
+            QMainWindow {
+                background-color: #0E0F12;
+            }
+            QWidget {
+                color: #D8D8D8;
+                font-family: "Segoe UI", "Inter", "Arial", sans-serif;
+            }
+            QFrame.card {
+                background-color: #15171C;
+                border: 1px solid #232630;
+                border-radius: 12px;
+            }
+            QFrame.card_header {
+                background-color: #121317;
+                border-bottom: 1px solid #232630;
+                border-top-left-radius: 12px;
+                border-top-right-radius: 12px;
+                padding: 6px 12px;
+            }
+        """)
 
     def _init_ui(self):
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
-        main_layout = QVBoxLayout(central_widget)
-        main_layout.setSpacing(16)
-        main_layout.setContentsMargins(20, 20, 20, 20)
+        central = QWidget()
+        self.setCentralWidget(central)
+        main_layout = QVBoxLayout(central)
+        main_layout.setContentsMargins(22, 18, 22, 18)
+        main_layout.setSpacing(14)
 
-        # Header Banner
+        # ---------------- 1. Top Header Banner ----------------
         header = QHBoxLayout()
-        title_box = QVBoxLayout()
-        title = QLabel("NITRO FAN CONTROL")
-        title.setFont(QFont("Arial", 18, QFont.Weight.Bold))
-        title.setStyleSheet("color: #FF2A2A; letter-spacing: 1px;")
-        
-        subtitle = QLabel("Acer Nitro V & Modern Nitro Platform")
-        subtitle.setStyleSheet("color: #777777; font-size: 12px;")
-        title_box.addWidget(title)
-        title_box.addWidget(subtitle)
-        header.addLayout(title_box)
-        
+        header.setContentsMargins(0, 0, 0, 2)
+
+        logo_box = QHBoxLayout()
+        logo_box.setSpacing(0)
+        logo_part1 = QLabel("NITRO")
+        logo_part1.setFont(QFont("Arial", 22, QFont.Weight.Bold))
+        logo_part1.setStyleSheet("color: #FFFFFF; letter-spacing: 2px;")
+
+        logo_part2 = QLabel("SENSE")
+        logo_part2.setFont(QFont("Arial", 22, QFont.Weight.Bold))
+        logo_part2.setStyleSheet("color: #FF1A1A; letter-spacing: 2px;")
+
+        logo_box.addWidget(logo_part1)
+        logo_box.addWidget(logo_part2)
+        header.addLayout(logo_box)
+
         header.addStretch()
-        
-        self.status_badge = QLabel(" WMI CONNECTED ")
-        self.status_badge.setStyleSheet("""
-            background-color: #103318;
-            color: #00FF66;
-            border: 1px solid #00AA44;
-            border-radius: 6px;
-            font-size: 11px;
-            font-weight: bold;
-            padding: 4px 8px;
-        """)
-        header.addWidget(self.status_badge)
+
+        # Hardware & Driver Status Badge
+        badge_box = QVBoxLayout()
+        badge_box.setSpacing(2)
+        badge_box.setAlignment(Qt.AlignmentFlag.AlignRight)
+
+        model_label = QLabel("ACER NITRO V 15")
+        model_label.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        model_label.setStyleSheet("color: #7A8090; letter-spacing: 1px;")
+
+        self.driver_badge = QLabel("● WMI DRIVER ACTIVE")
+        self.driver_badge.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        self.driver_badge.setStyleSheet("color: #00FF66; letter-spacing: 0.5px;")
+
+        badge_box.addWidget(model_label)
+        badge_box.addWidget(self.driver_badge)
+        header.addLayout(badge_box)
         main_layout.addLayout(header)
 
-        # Telemetry Grid (RPM and Temps)
-        grid = QGridLayout()
-        grid.setSpacing(12)
-        
-        self.card_cpu_fan = MetricCard("CPU FAN SPEED", "RPM", "#FF4444")
-        self.card_gpu_fan = MetricCard("GPU FAN SPEED", "RPM", "#FF4444")
-        self.card_cpu_temp = MetricCard("CPU TEMP", "°C", "#00E5FF")
-        self.card_gpu_temp = MetricCard("GPU TEMP", "°C", "#00E5FF")
-        
-        grid.addWidget(self.card_cpu_fan, 0, 0)
-        grid.addWidget(self.card_gpu_fan, 0, 1)
-        grid.addWidget(self.card_cpu_temp, 1, 0)
-        grid.addWidget(self.card_gpu_temp, 1, 1)
-        main_layout.addLayout(grid)
+        # ---------------- 2. Mode Segment Bar ----------------
+        mode_card = QFrame()
+        mode_card.setProperty("class", "card")
+        mode_card_layout = QHBoxLayout(mode_card)
+        mode_card_layout.setContentsMargins(8, 8, 8, 8)
+        mode_card_layout.setSpacing(8)
 
-        # Fan Mode Selection (Auto vs Turbo vs Custom)
-        mode_box = QGroupBox("FAN PROFILE PRESETS")
-        mode_box.setStyleSheet("""
-            QGroupBox {
-                color: #AAAAAA;
-                font-size: 12px;
-                font-weight: bold;
-                border: 1px solid #2B2B2B;
-                border-radius: 8px;
-                margin-top: 10px;
-                padding-top: 15px;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 4px;
-            }
-        """)
-        mode_layout = QHBoxLayout(mode_box)
-        mode_layout.setSpacing(10)
+        self.btn_mode_auto = QPushButton("AUTO")
+        self.btn_mode_max = QPushButton("MAX TURBO")
+        self.btn_mode_custom = QPushButton("CUSTOM")
 
-        self.btn_auto = QPushButton("AUTO (NORMAL)")
-        self.btn_auto.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_auto.setStyleSheet("""
-            QPushButton {
-                background-color: #1E281E;
-                color: #44FF44;
-                border: 1px solid #336633;
-                border-radius: 8px;
-                padding: 10px;
-                font-weight: bold;
-            }
-            QPushButton:hover { background-color: #274027; border: 1px solid #55FF55; }
-        """)
-        self.btn_auto.clicked.connect(self._set_auto)
+        for btn in (self.btn_mode_auto, self.btn_mode_max, self.btn_mode_custom):
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.setFont(QFont("Arial", 11, QFont.Weight.Bold))
+            btn.setFixedHeight(42)
 
-        self.btn_max = QPushButton("MAX TURBO (100%)")
-        self.btn_max.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_max.setStyleSheet("""
-            QPushButton {
-                background-color: #331414;
-                color: #FF3333;
-                border: 1px solid #772222;
-                border-radius: 8px;
-                padding: 10px;
-                font-weight: bold;
-            }
-            QPushButton:hover { background-color: #4A1A1A; border: 1px solid #FF5555; }
-        """)
-        self.btn_max.clicked.connect(self._set_max)
+        self.btn_mode_auto.clicked.connect(lambda: self._switch_mode("auto"))
+        self.btn_mode_max.clicked.connect(lambda: self._switch_mode("max"))
+        self.btn_mode_custom.clicked.connect(lambda: self._switch_mode("custom"))
 
-        mode_layout.addWidget(self.btn_auto)
-        mode_layout.addWidget(self.btn_max)
-        main_layout.addWidget(mode_box)
+        mode_card_layout.addWidget(self.btn_mode_auto)
+        mode_card_layout.addWidget(self.btn_mode_max)
+        mode_card_layout.addWidget(self.btn_mode_custom)
+        main_layout.addWidget(mode_card)
 
-        # Custom Fan Sliders Group
-        slider_box = QGroupBox("MANUAL FAN SPEED ADJUSTMENT")
-        slider_box.setStyleSheet(mode_box.styleSheet())
-        slider_layout = QVBoxLayout(slider_box)
-        slider_layout.setSpacing(12)
+        # ---------------- 3. Dual Tachometer Speedometers ----------------
+        gauges_frame = QFrame()
+        gauges_frame.setProperty("class", "card")
+        gauges_layout = QHBoxLayout(gauges_frame)
+        gauges_layout.setContentsMargins(10, 10, 10, 14)
+        gauges_layout.setSpacing(10)
 
-        # CPU Fan Slider
-        cpu_row = QHBoxLayout()
-        cpu_label = QLabel("CPU Fan Speed:")
-        cpu_label.setStyleSheet("color: #CCCCCC; font-size: 13px; font-weight: bold;")
-        self.cpu_pct_label = QLabel("Auto")
-        self.cpu_pct_label.setStyleSheet("color: #FF2A2A; font-size: 13px; font-weight: bold;")
-        cpu_row.addWidget(cpu_label)
-        cpu_row.addStretch()
-        cpu_row.addWidget(self.cpu_pct_label)
-        slider_layout.addLayout(cpu_row)
+        self.cpu_gauge = CircularFanGauge("CPU FAN", max_rpm=7000)
+        self.gpu_gauge = CircularFanGauge("GPU FAN", max_rpm=7000)
 
-        self.cpu_slider = QSlider(Qt.Orientation.Horizontal)
-        self.cpu_slider.setRange(0, 100)
-        self.cpu_slider.setValue(0)
-        self.cpu_slider.setStyleSheet(self._slider_style())
-        self.cpu_slider.valueChanged.connect(self._on_slider_moved)
-        slider_layout.addWidget(self.cpu_slider)
+        gauges_layout.addWidget(self.cpu_gauge)
+        gauges_layout.addWidget(self.gpu_gauge)
+        main_layout.addWidget(gauges_frame)
 
-        # GPU Fan Slider
-        gpu_row = QHBoxLayout()
-        gpu_label = QLabel("GPU Fan Speed:")
-        gpu_label.setStyleSheet("color: #CCCCCC; font-size: 13px; font-weight: bold;")
-        self.gpu_pct_label = QLabel("Auto")
-        self.gpu_pct_label.setStyleSheet("color: #FF2A2A; font-size: 13px; font-weight: bold;")
-        gpu_row.addWidget(gpu_label)
-        gpu_row.addStretch()
-        gpu_row.addWidget(self.gpu_pct_label)
-        slider_layout.addLayout(gpu_row)
+        # ---------------- 4. Custom Manual Fan Speed Sliders ----------------
+        self.custom_card = QFrame()
+        self.custom_card.setProperty("class", "card")
+        custom_layout = QVBoxLayout(self.custom_card)
+        custom_layout.setContentsMargins(18, 16, 18, 16)
+        custom_layout.setSpacing(12)
 
-        self.gpu_slider = QSlider(Qt.Orientation.Horizontal)
-        self.gpu_slider.setRange(0, 100)
-        self.gpu_slider.setValue(0)
-        self.gpu_slider.setStyleSheet(self._slider_style())
-        self.gpu_slider.valueChanged.connect(self._on_slider_moved)
-        slider_layout.addWidget(self.gpu_slider)
+        # Header for Custom section
+        custom_header = QHBoxLayout()
+        sec_title = QLabel("MANUAL FAN SPEED TUNING")
+        sec_title.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        sec_title.setStyleSheet("color: #8C92A4; letter-spacing: 0.5px;")
+        custom_header.addWidget(sec_title)
+        custom_header.addStretch()
+
+        self.chk_sync = QCheckBox("Link CPU & GPU Fans")
+        self.chk_sync.setChecked(True)
+        self.chk_sync.setStyleSheet("color: #CCCCCC; font-size: 11px;")
+        self.chk_sync.toggled.connect(self._on_sync_toggled)
+        custom_header.addWidget(self.chk_sync)
+        custom_layout.addLayout(custom_header)
+
+        # CPU Fan Slider Row
+        cpu_box = QHBoxLayout()
+        cpu_lbl = QLabel("CPU Fan:")
+        cpu_lbl.setStyleSheet("font-weight: bold; font-size: 12px; color: #E0E0E0;")
+        self.cpu_pct_lbl = QLabel("60%")
+        self.cpu_pct_lbl.setStyleSheet("color: #FF2A2A; font-weight: bold; font-size: 12px;")
+        cpu_box.addWidget(cpu_lbl)
+        cpu_box.addStretch()
+        cpu_box.addWidget(self.cpu_pct_lbl)
+        custom_layout.addLayout(cpu_box)
+
+        self.slider_cpu = QSlider(Qt.Orientation.Horizontal)
+        self.slider_cpu.setRange(20, 100)
+        self.slider_cpu.setValue(60)
+        self.slider_cpu.setStyleSheet(self._slider_stylesheet())
+        self.slider_cpu.valueChanged.connect(self._on_cpu_slider_changed)
+        custom_layout.addWidget(self.slider_cpu)
+
+        # GPU Fan Slider Row
+        gpu_box = QHBoxLayout()
+        gpu_lbl = QLabel("GPU Fan:")
+        gpu_lbl.setStyleSheet("font-weight: bold; font-size: 12px; color: #E0E0E0;")
+        self.gpu_pct_lbl = QLabel("60%")
+        self.gpu_pct_lbl.setStyleSheet("color: #FF2A2A; font-weight: bold; font-size: 12px;")
+        gpu_box.addWidget(gpu_lbl)
+        gpu_box.addStretch()
+        gpu_box.addWidget(self.gpu_pct_lbl)
+        custom_layout.addLayout(gpu_box)
+
+        self.slider_gpu = QSlider(Qt.Orientation.Horizontal)
+        self.slider_gpu.setRange(20, 100)
+        self.slider_gpu.setValue(60)
+        self.slider_gpu.setStyleSheet(self._slider_stylesheet())
+        self.slider_gpu.valueChanged.connect(self._on_gpu_slider_changed)
+        custom_layout.addWidget(self.slider_gpu)
 
         # Quick Preset Buttons
-        preset_row = QHBoxLayout()
-        preset_row.setSpacing(8)
-        for pct, name in [(40, "Quiet (40%)"), (65, "Balanced (65%)"), (85, "Heavy (85%)"), (100, "Full (100%)")]:
+        presets_layout = QHBoxLayout()
+        presets_layout.setSpacing(8)
+        for pct, name in [(40, "Quiet 40%"), (60, "Normal 60%"), (80, "Gaming 80%"), (100, "Max 100%")]:
             btn = QPushButton(name)
+            btn.setFixedHeight(28)
             btn.setStyleSheet("""
                 QPushButton {
-                    background-color: #242424;
-                    color: #CCCCCC;
-                    border: 1px solid #3A3A3A;
+                    background-color: #1E2129;
+                    color: #A0A5B5;
+                    border: 1px solid #2B303C;
                     border-radius: 6px;
-                    padding: 6px;
                     font-size: 11px;
+                    font-weight: 500;
                 }
-                QPushButton:hover { background-color: #333333; color: #FFFFFF; }
+                QPushButton:hover {
+                    background-color: #262B36;
+                    color: #FFFFFF;
+                    border-color: #FF2A2A;
+                }
             """)
             btn.clicked.connect(lambda _, p=pct: self._apply_preset(p))
-            preset_row.addWidget(btn)
-        slider_layout.addLayout(preset_row)
+            presets_layout.addWidget(btn)
+        custom_layout.addLayout(presets_layout)
 
-        # Apply Custom Button
-        self.btn_apply = QPushButton("APPLY CUSTOM FAN SPEEDS")
+        # Apply Button
+        self.btn_apply = QPushButton("APPLY FAN SPEEDS")
+        self.btn_apply.setFixedHeight(38)
         self.btn_apply.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_apply.setStyleSheet("""
             QPushButton {
-                background-color: #E50914;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #C20000, stop:1 #FF1A1A);
                 color: #FFFFFF;
                 border: none;
                 border-radius: 8px;
-                padding: 12px;
-                font-size: 13px;
+                font-size: 12px;
                 font-weight: bold;
-                letter-spacing: 0.5px;
+                letter-spacing: 1px;
             }
-            QPushButton:hover { background-color: #FF1E27; }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #E60000, stop:1 #FF3333);
+            }
+            QPushButton:pressed {
+                background: #990000;
+            }
         """)
-        self.btn_apply.clicked.connect(self._apply_custom)
-        slider_layout.addWidget(self.btn_apply)
+        self.btn_apply.clicked.connect(self._apply_custom_speeds)
+        custom_layout.addWidget(self.btn_apply)
 
-        main_layout.addWidget(slider_box)
-        main_layout.addStretch()
+        main_layout.addWidget(self.custom_card)
 
-    def _slider_style(self):
+        # ---------------- 5. Footer Status ----------------
+        footer = QHBoxLayout()
+        footer.setContentsMargins(4, 0, 4, 0)
+        self.status_footer = QLabel("Active Profile: Balanced | WMI Interface Verified")
+        self.status_footer.setStyleSheet("color: #555A6B; font-size: 11px;")
+        footer.addWidget(self.status_footer)
+
+        footer.addStretch()
+
+        reset_btn = QPushButton("Reset to Auto")
+        reset_btn.setFlat(True)
+        reset_btn.setStyleSheet("color: #777E90; font-size: 11px; text-decoration: underline;")
+        reset_btn.clicked.connect(lambda: self._switch_mode("auto"))
+        footer.addWidget(reset_btn)
+
+        main_layout.addLayout(footer)
+
+        # Initialize button styles
+        self._update_button_styles()
+
+    def _slider_stylesheet(self):
         return """
             QSlider::groove:horizontal {
-                height: 8px;
-                background: #252525;
-                border-radius: 4px;
+                height: 6px;
+                background: #20242E;
+                border-radius: 3px;
             }
             QSlider::sub-page:horizontal {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #880000, stop:1 #FF2A2A);
-                border-radius: 4px;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #990000, stop:1 #FF2222);
+                border-radius: 3px;
             }
             QSlider::handle:horizontal {
                 background: #FFFFFF;
-                border: 2px solid #FF2A2A;
-                width: 18px;
+                border: 2px solid #FF2222;
+                width: 16px;
+                height: 16px;
                 margin-top: -5px;
                 margin-bottom: -5px;
-                border-radius: 9px;
+                border-radius: 8px;
             }
             QSlider::handle:horizontal:hover {
-                background: #FF2A2A;
+                background: #FF2222;
             }
         """
 
-    def _on_slider_moved(self):
-        c_val = self.cpu_slider.value()
-        g_val = self.gpu_slider.value()
-        self.cpu_pct_label.setText(f"{c_val}%" if c_val > 0 else "Auto (0%)")
-        self.gpu_pct_label.setText(f"{g_val}%" if g_val > 0 else "Auto (0%)")
+    def _update_button_styles(self):
+        active_style = """
+            QPushButton {
+                background-color: #221214;
+                color: #FFFFFF;
+                border: 2px solid #FF1A1A;
+                border-radius: 8px;
+            }
+        """
+        inactive_style = """
+            QPushButton {
+                background-color: #15171C;
+                color: #8C92A4;
+                border: 1px solid #232630;
+                border-radius: 8px;
+            }
+            QPushButton:hover {
+                background-color: #1A1D24;
+                color: #FFFFFF;
+                border-color: #383D4D;
+            }
+        """
 
-    def _apply_preset(self, pct):
-        self.cpu_slider.setValue(pct)
-        self.gpu_slider.setValue(pct)
-        self._apply_custom()
+        self.btn_mode_auto.setStyleSheet(active_style if self.active_mode == "auto" else inactive_style)
+        self.btn_mode_max.setStyleSheet(active_style if self.active_mode == "max" else inactive_style)
+        self.btn_mode_custom.setStyleSheet(active_style if self.active_mode == "custom" else inactive_style)
 
-    def _set_auto(self):
-        self.cpu_slider.setValue(0)
-        self.gpu_slider.setValue(0)
-        set_fan_speed(0, 0)
-        self.update_telemetry()
+        # Dim custom sliders when not in custom mode
+        is_custom = (self.active_mode == "custom")
+        self.slider_cpu.setEnabled(is_custom)
+        self.slider_gpu.setEnabled(is_custom)
+        self.btn_apply.setEnabled(is_custom)
+        self.custom_card.setStyleSheet(f"""
+            QFrame.card {{
+                background-color: {'#15171C' if is_custom else '#111216'};
+                border: 1px solid {'#2A2E3B' if is_custom else '#1A1C22'};
+                border-radius: 12px;
+            }}
+        """)
 
-    def _set_max(self):
-        self.cpu_slider.setValue(100)
-        self.gpu_slider.setValue(100)
-        set_fan_speed(100, 100)
-        self.update_telemetry()
+    def _switch_mode(self, mode: str):
+        self.active_mode = mode
+        self._update_button_styles()
 
-    def _apply_custom(self):
-        c = self.cpu_slider.value()
-        g = self.gpu_slider.value()
+        if mode == "auto":
+            set_fan_speed(0, 0)
+        elif mode == "max":
+            set_fan_speed(100, 100)
+        elif mode == "custom":
+            self._apply_custom_speeds()
+
+        self._update_telemetry()
+
+    def _on_sync_toggled(self, checked: bool):
+        self.sync_fans = checked
+        if checked:
+            self.slider_gpu.setValue(self.slider_cpu.value())
+
+    def _on_cpu_slider_changed(self, val: int):
+        self.cpu_pct_lbl.setText(f"{val}%")
+        if self.sync_fans:
+            self.slider_gpu.blockSignals(True)
+            self.slider_gpu.setValue(val)
+            self.gpu_pct_lbl.setText(f"{val}%")
+            self.slider_gpu.blockSignals(False)
+
+    def _on_gpu_slider_changed(self, val: int):
+        self.gpu_pct_lbl.setText(f"{val}%")
+        if self.sync_fans:
+            self.slider_cpu.blockSignals(True)
+            self.slider_cpu.setValue(val)
+            self.cpu_pct_lbl.setText(f"{val}%")
+            self.slider_cpu.blockSignals(False)
+
+    def _apply_preset(self, pct: int):
+        self.slider_cpu.setValue(pct)
+        self.slider_gpu.setValue(pct)
+        if self.active_mode != "custom":
+            self.active_mode = "custom"
+            self._update_button_styles()
+        self._apply_custom_speeds()
+
+    def _apply_custom_speeds(self):
+        c = self.slider_cpu.value()
+        g = self.slider_gpu.value()
         set_fan_speed(c, g)
-        self.update_telemetry()
+        self._update_telemetry()
 
-    def update_telemetry(self):
+    def _update_telemetry(self):
         t = read_telemetry()
         if not t["driver_loaded"]:
-            self.status_badge.setText(" DRIVER MISSING ")
-            self.status_badge.setStyleSheet("background-color: #331010; color: #FF4444; border: 1px solid #882222;")
+            self.driver_badge.setText("● DRIVER OFFLINE")
+            self.driver_badge.setStyleSheet("color: #FF3333;")
             return
 
-        # Update cards
-        self.card_cpu_fan.set_value(t["cpu_rpm"], f"Mode: {t['fan_mode']}")
-        self.card_gpu_fan.set_value(t["gpu_rpm"], f"Mode: {t['fan_mode']}")
+        # Update gauges
+        self.cpu_gauge.set_data(t["cpu_rpm"], t["cpu_temp"], True)
+        self.gpu_gauge.set_data(t["gpu_rpm"], t["gpu_temp"], t["gpu_temp"] > 0)
 
-        # Temperature color-coding
-        c_temp = t["cpu_temp"]
-        c_color = "#44FF44" if c_temp < 60 else "#FFCC00" if c_temp < 78 else "#FF3333"
-        self.card_cpu_temp.set_value(c_temp, "Package Temp", c_color)
+        # Reflect detected active mode from driver
+        mode_str = t["fan_mode"]
+        if mode_str == "100,100" and self.active_mode != "max":
+            self.active_mode = "max"
+            self._update_button_styles()
+        elif mode_str == "0,0" and self.active_mode != "auto":
+            self.active_mode = "auto"
+            self._update_button_styles()
 
-        g_temp = t["gpu_temp"]
-        g_color = "#44FF44" if g_temp < 60 else "#FFCC00" if g_temp < 78 else "#FF3333"
-        if g_temp > 0:
-            self.card_gpu_temp.set_value(g_temp, "Active", g_color)
-        else:
-            self.card_gpu_temp.set_value(0, "dGPU Standby (D3Cold)", "#777777")
+        self.status_footer.setText(f"Active Mode: {mode_str} | Platform Profile: {t['profile']} | Acer WMI: Active")
 
 def main():
     app = QApplication(sys.argv)
-    app.setApplicationName("Acer Nitro Fan Management")
-    win = NitroWindow()
+    app.setApplicationName("NitroSense")
+    win = NitroSenseWindow()
     win.show()
     sys.exit(app.exec())
 
