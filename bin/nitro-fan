@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Nitro-Fan Unified Command-Line & GUI Launcher
+# Installed for Acer Nitro V 15 (ANV15-41) and modern Nitro laptops
+
+TARGET_SCRIPT="${BASH_SOURCE[0]}"
+while [ -L "$TARGET_SCRIPT" ]; do
+    DIR="$(cd -P "$(dirname "$TARGET_SCRIPT")" && pwd)"
+    TARGET_SCRIPT="$(readlink "$TARGET_SCRIPT")"
+    [[ $TARGET_SCRIPT != /* ]] && TARGET_SCRIPT="$DIR/$TARGET_SCRIPT"
+done
+PROJECT_DIR="$(cd -P "$(dirname "$TARGET_SCRIPT")/.." && pwd)"
+
+PYTHON_EXEC="/home/kahnsvaer/.pyenv/shims/python3"
+if [ ! -x "$PYTHON_EXEC" ]; then
+    PYTHON_EXEC="$(which python3)"
+fi
+
+if [ "$1" == "gui" ]; then
+    exec "$PYTHON_EXEC" "$PROJECT_DIR/gui/nitro_gui.py" "$@"
+elif [ $# -eq 0 ]; then
+    # If launched with no args from terminal, display status
+    exec "$PYTHON_EXEC" "$PROJECT_DIR/cli/nitro_fan.py" "status"
+else
+    exec "$PYTHON_EXEC" "$PROJECT_DIR/cli/nitro_fan.py" "$@"
+fi

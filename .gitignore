@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.o
+*.ko
+*.mod
+*.mod.c
+*.order
+*.symvers
+*.zst
+.tmp_versions/
+.cache/

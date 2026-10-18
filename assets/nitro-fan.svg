@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <radialGradient id="grad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FF2A2A"/>
+      <stop offset="70%" stop-color="#990000"/>
+      <stop offset="100%" stop-color="#1A1A1A"/>
+    </radialGradient>
+    <linearGradient id="blade" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF4D4D"/>
+      <stop offset="100%" stop-color="#B30000"/>
+    </linearGradient>
+  </defs>
+  <!-- Background circle -->
+  <circle cx="64" cy="64" r="60" fill="#141414" stroke="#FF2A2A" stroke-width="4"/>
+  <circle cx="64" cy="64" r="54" fill="#1C1C1C" stroke="#333333" stroke-width="2"/>
+  
+  <!-- Fan blades -->
+  <g transform="translate(64,64)">
+    <!-- 7 curved blades -->
+    <path d="M 0,-12 C 14,-22 26,-40 18,-48 C 6,-42 -4,-28 0,-12 Z" fill="url(#blade)" transform="rotate(0)"/>
+    <path d="M 0,-12 C 14,-22 26,-40 18,-48 C 6,-42 -4,-28 0,-12 Z" fill="url(#blade)" transform="rotate(51.4)"/>
+    <path d="M 0,-12 C 14,-22 26,-40 18,-48 C 6,-42 -4,-28 0,-12 Z" fill="url(#blade)" transform="rotate(102.8)"/>
+    <path d="M 0,-12 C 14,-22 26,-40 18,-48 C 6,-42 -4,-28 0,-12 Z" fill="url(#blade)" transform="rotate(154.2)"/>
+    <path d="M 0,-12 C 14,-22 26,-40 18,-48 C 6,-42 -4,-28 0,-12 Z" fill="url(#blade)" transform="rotate(205.7)"/>
+    <path d="M 0,-12 C 14,-22 26,-40 18,-48 C 6,-42 -4,-28 0,-12 Z" fill="url(#blade)" transform="rotate(257.1)"/>
+    <path d="M 0,-12 C 14,-22 26,-40 18,-48 C 6,-42 -4,-28 0,-12 Z" fill="url(#blade)" transform="rotate(308.5)"/>
+    <!-- Center hub -->
+    <circle cx="0" cy="0" r="16" fill="url(#grad)" stroke="#FF4D4D" stroke-width="2"/>
+    <circle cx="0" cy="0" r="6" fill="#141414"/>
+  </g>
+</svg>

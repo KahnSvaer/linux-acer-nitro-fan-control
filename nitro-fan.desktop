@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Acer Nitro Fan Control
+Comment=Hardware fan speed and cooling management for Acer Nitro laptops
+Exec=/media/kahnsvaer/Datasets/PsnlProjects/Linux-NitroSense/bin/nitro-fan gui
+Icon=/media/kahnsvaer/Datasets/PsnlProjects/Linux-NitroSense/assets/nitro-fan.svg
+Terminal=false
+Type=Application
+Categories=System;Settings;HardwareSettings;
+Keywords=nitro;fan;cooling;thermal;acer;
