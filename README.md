@@ -85,6 +85,7 @@ Linux-NitroSense/
 │   └── nitro_gui.py         # PyQt6 graphical user interface
 ├── install.sh               # Complete setup script (DKMS, udev rules, desktop launcher)
 ├── nitrofan.desktop         # Application menu shortcut
+├── LICENSE                  # GNU General Public License v3.0
 └── README.md
 ```
 
@@ -103,3 +104,9 @@ The installer automatically:
 2. Creates udev permissions for passwordless control.
 3. Links the executable to `/usr/local/bin/nitrofan`.
 4. Installs the desktop application launcher.
+
+---
+
+## License
+
+This project is licensed under the [GNU General Public License v3.0 (GPL-3.0)](LICENSE).
