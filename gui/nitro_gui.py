@@ -140,34 +140,23 @@ class CircularFanGauge(QWidget):
             painter.setPen(active_pen)
             painter.drawArc(arc_rect, int(start_angle * 16), int(active_span * 16))
 
-        # 4. Calibrated Scale Ticks (like mm / cm marks on a ruler)
-        for i in range(51):  # Every 2% from 0% to 100%
-            tick_pct = i * 2
+        # 4. Clean 10% Interval Scale Lines (0%, 10%, 20%, 30%, 40%, 50%, 60%, 70%, 80%, 90%, 100%)
+        # Finer sub-ticks removed for a clean, minimal speedometer scale
+        for i in range(11):  # Exactly 11 clean lines
+            tick_pct = i * 10
             theta = start_angle + total_span * (tick_pct / 100.0)
             rad = math.radians(theta)
             cos_t = math.cos(rad)
             sin_t = math.sin(rad)
 
             is_reached = (tick_pct <= cur_pct)
+            is_major = (tick_pct % 20 == 0)
 
-            if tick_pct % 20 == 0:
-                # Major tick (0%, 20%, 40%, 60%, 80%, 100%)
-                r1 = radius - 15
-                r2 = radius - 3
-                pen_color = QColor(255, 50, 50) if is_reached else QColor(100, 108, 125)
-                pen_w = 2.0
-            elif tick_pct % 10 == 0:
-                # Medium tick (10%, 30%, 50%, 70%, 90%)
-                r1 = radius - 11
-                r2 = radius - 4
-                pen_color = QColor(255, 80, 80) if is_reached else QColor(60, 66, 80)
-                pen_w = 1.5
-            else:
-                # Minor tick (every 2%)
-                r1 = radius - 8
-                r2 = radius - 4
-                pen_color = QColor(255, 120, 120) if is_reached else QColor(40, 44, 55)
-                pen_w = 1.0
+            # Major lines (0%, 20%, 40%, 60%, 80%, 100%) slightly longer than intermediate lines (10%, 30%, 50%...)
+            r1 = radius - (15 if is_major else 11)
+            r2 = radius - 3
+            pen_w = 2.0 if is_major else 1.5
+            pen_color = QColor(255, 45, 45) if is_reached else (QColor(95, 102, 118) if is_major else QColor(50, 55, 68))
 
             painter.setPen(QPen(pen_color, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
             painter.drawLine(
@@ -188,7 +177,7 @@ class CircularFanGauge(QWidget):
             if p <= cur_pct:
                 painter.setPen(QColor(255, 255, 255))
             else:
-                painter.setPen(QColor(85, 92, 110))
+                painter.setPen(QColor(90, 98, 115))
 
             painter.drawText(QRectF(lx - 16, ly - 8, 32, 16), Qt.AlignmentFlag.AlignCenter, f"{p}%")
 
@@ -217,37 +206,13 @@ class CircularFanGauge(QWidget):
         font_rpm = QFont("Arial", 22, QFont.Weight.Bold)
         painter.setFont(font_rpm)
         rpm_str = f"{int(self.display_rpm):,}"
-        painter.drawText(QRectF(cx - 90, cy - 20, 180, 34), Qt.AlignmentFlag.AlignCenter, rpm_str)
+        painter.drawText(QRectF(cx - 90, cy - 18, 180, 36), Qt.AlignmentFlag.AlignCenter, rpm_str)
 
-        # 9. Center Text: Live Percentage Indicator Badge
-        pct_w = 82.0
-        pct_h = 22.0
-        pct_x = cx - pct_w / 2.0
-        pct_y = cy + 16.0
-        pct_rect = QRectF(pct_x, pct_y, pct_w, pct_h)
-
-        if cur_pct < 45:
-            badge_color = QColor(0, 230, 118)
-        elif cur_pct < 75:
-            badge_color = QColor(255, 179, 0)
-        else:
-            badge_color = QColor(255, 50, 50)
-
-        # Badge pill background
-        painter.setPen(QPen(QColor(38, 42, 52), 1))
-        painter.setBrush(QBrush(QColor(18, 20, 26)))
-        painter.drawRoundedRect(pct_rect, 11.0, 11.0)
-
-        # Status dot inside percentage badge
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(badge_color))
-        painter.drawEllipse(QPointF(pct_x + 13, pct_y + 11), 3.5, 3.5)
-
-        # Percentage text
-        painter.setPen(badge_color)
-        font_pct = QFont("Arial", 9, QFont.Weight.Bold)
-        painter.setFont(font_pct)
-        painter.drawText(QRectF(pct_x + 18, pct_y, pct_w - 22, pct_h), Qt.AlignmentFlag.AlignCenter, f"{cur_pct}%")
+        # 9. Center Text: Clean "RPM" Unit Label beneath numbers
+        painter.setPen(QColor(110, 115, 130))
+        font_unit = QFont("Arial", 9, QFont.Weight.Bold)
+        painter.setFont(font_unit)
+        painter.drawText(QRectF(cx - 50, cy + 18, 100, 18), Qt.AlignmentFlag.AlignCenter, "RPM")
 
         # 10. Bottom Temperature Pill
         pill_w = 110.0
