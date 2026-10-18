@@ -50,24 +50,25 @@ if [ -f "/sys/devices/platform/acer-wmi/nitro_sense/fan_speed" ]; then
 fi
 
 echo -e "${BLUE}[3/5] Installing CLI binary in /usr/local/bin...${NC}"
-chmod +x "$PROJECT_DIR/bin/nitro-fan"
-ln -sf "$PROJECT_DIR/bin/nitro-fan" /usr/local/bin/nitro-fan
-rm -f /usr/local/bin/nitrosense 2>/dev/null || true
+chmod +x "$PROJECT_DIR/bin/nitrofan"
+ln -sf "$PROJECT_DIR/bin/nitrofan" /usr/local/bin/nitrofan
+rm -f /usr/local/bin/nitro-fan /usr/local/bin/nitrosense 2>/dev/null || true
 
 echo -e "${BLUE}[4/5] Installing desktop application launcher...${NC}"
-DESKTOP_FILE="$PROJECT_DIR/nitro-fan.desktop"
+DESKTOP_FILE="$PROJECT_DIR/nitrofan.desktop"
 cat << EOF > "$DESKTOP_FILE"
 [Desktop Entry]
 Name=Fan Control Center
 Comment=Hardware fan speed and cooling management for Linux
-Exec=$PROJECT_DIR/bin/nitro-fan gui
-Icon=$PROJECT_DIR/assets/nitro-fan.svg
+Exec=$PROJECT_DIR/bin/nitrofan gui
+Icon=$PROJECT_DIR/assets/nitrofan.svg
 Terminal=false
 Type=Application
 Categories=System;Settings;HardwareSettings;
 Keywords=fan;cooling;thermal;fan-control;
 EOF
 cp "$DESKTOP_FILE" /usr/share/applications/ 2>/dev/null || true
+rm -f /usr/share/applications/nitro-fan.desktop 2>/dev/null || true
 update-desktop-database /usr/share/applications/ 2>/dev/null || true
 
 echo -e "${BLUE}[5/5] Ensuring kernel driver is active...${NC}"
@@ -80,10 +81,10 @@ echo -e "${GREEN}   [✓] Fan Management Suite Successfully Installed! ${NC}"
 echo -e "${GREEN}====================================================${NC}"
 echo ""
 echo "Quick Commands:"
-echo "  nitro-fan status       # View real-time fan RPMs, mode, and temps"
-echo "  nitro-fan max          # Force 100% Turbo cooling"
-echo "  nitro-fan auto         # Restore automatic BIOS fan curves"
-echo "  nitro-fan set 75 75    # Custom fan percentage"
-echo "  nitro-fan watch        # Live terminal monitoring dashboard"
-echo "  nitro-fan gui          # Launch graphical user interface"
+echo "  nitrofan status       # View real-time fan RPMs, mode, and temps"
+echo "  nitrofan max          # Force 100% Turbo cooling"
+echo "  nitrofan auto         # Restore automatic BIOS fan curves"
+echo "  nitrofan set 75 75    # Custom fan percentage"
+echo "  nitrofan watch        # Live terminal monitoring dashboard"
+echo "  nitrofan gui          # Launch graphical user interface"
 echo ""

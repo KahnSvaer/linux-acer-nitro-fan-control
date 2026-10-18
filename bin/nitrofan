@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Nitro-Fan Unified Command-Line & GUI Launcher
-# Installed for Acer Nitro V 15 (ANV15-41) and modern Nitro laptops
+# NitroFan Unified Command-Line & GUI Launcher
 
 TARGET_SCRIPT="${BASH_SOURCE[0]}"
 while [ -L "$TARGET_SCRIPT" ]; do

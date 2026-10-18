@@ -1,4 +1,4 @@
-# Fan Control Suite for Linux (`nitro-fan`)
+# Fan Control Suite for Linux (`nitrofan`)
 
 A dedicated open-source cooling management suite for modern gaming laptops on Linux.
 
@@ -13,7 +13,7 @@ Unlike legacy utilities that poke raw bytes into physical Embedded Controller (E
 - **Motor Stall Protection**: Custom manual fan speeds are clamped to a safe minimum of 25% to prevent motor stalling and heat buildup.
 - **Thermal Safeguard**: Active watchdog elevates fan speeds if CPU or GPU temperatures reach critical thresholds (≥ 88°C) while in custom mode.
 - **Zero Invasive Modifications**: No battery charge limit tampering, no keyboard backlight NVRAM poking, no raw physical EC register writes. Strictly 100% cooling and fan control.
-- **Fail-Safe Firmware Mode**: Setting fans to Auto (`nitro-fan auto`) immediately returns full control to native motherboard BIOS thermal curves.
+- **Fail-Safe Firmware Mode**: Setting fans to Auto (`nitrofan auto`) immediately returns full control to native motherboard BIOS thermal curves.
 
 ---
 
@@ -32,22 +32,22 @@ Unlike legacy utilities that poke raw bytes into physical Embedded Controller (E
 
 ```bash
 # Check current fan speeds, active mode, and CPU temperature
-nitro-fan status
+nitrofan status
 
 # Force 100% Full Blast Turbo cooling
-nitro-fan max
+nitrofan max
 
 # Return to automatic BIOS fan curve
-nitro-fan auto
+nitrofan auto
 
 # Set custom fan speeds (safe range: 25% - 100%)
-nitro-fan set 75 65
+nitrofan set 75 65
 
 # Launch real-time live updating terminal dashboard
-nitro-fan watch
+nitrofan watch
 
 # Launch the Graphical User Interface
-nitro-fan gui
+nitrofan gui
 ```
 
 ---
@@ -57,7 +57,7 @@ nitro-fan gui
 Launch the interface via terminal or your desktop app menu:
 
 ```bash
-nitro-fan gui
+nitrofan gui
 ```
 
 Features:
@@ -74,9 +74,9 @@ Features:
 ```text
 Linux-NitroSense/
 ├── assets/
-│   └── nitro-fan.svg        # Generic vector fan icon
+│   └── nitrofan.svg         # Generic vector fan icon
 ├── bin/
-│   └── nitro-fan            # Unified CLI & GUI launcher
+│   └── nitrofan             # Unified CLI & GUI launcher
 ├── cli/
 │   └── nitro_fan.py         # Command-line telemetry and fan control engine
 ├── driver/
@@ -84,7 +84,7 @@ Linux-NitroSense/
 ├── gui/
 │   └── nitro_gui.py         # PyQt6 graphical user interface
 ├── install.sh               # Complete setup script (DKMS, udev rules, desktop launcher)
-├── nitro-fan.desktop        # Application menu shortcut
+├── nitrofan.desktop         # Application menu shortcut
 └── README.md
 ```
 
@@ -101,5 +101,5 @@ sudo ./install.sh
 The installer automatically:
 1. Registers the kernel module with DKMS.
 2. Creates udev permissions for passwordless control.
-3. Links the executable to `/usr/local/bin/nitro-fan`.
+3. Links the executable to `/usr/local/bin/nitrofan`.
 4. Installs the desktop application launcher.
