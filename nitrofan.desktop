@@ -2,8 +2,9 @@
 Name=Fan Control Center
 Comment=Hardware fan speed and cooling management for Linux
 Exec=/media/kahnsvaer/Datasets/PsnlProjects/Linux-NitroSense/bin/nitrofan gui
-Icon=/media/kahnsvaer/Datasets/PsnlProjects/Linux-NitroSense/assets/nitrofan.svg
+Icon=nitrofan
 Terminal=false
 Type=Application
-Categories=System;Settings;HardwareSettings;
+StartupWMClass=nitrofan
+Categories=System;HardwareSettings;
 Keywords=fan;cooling;thermal;fan-control;

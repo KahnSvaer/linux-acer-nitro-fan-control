@@ -54,16 +54,28 @@ chmod +x "$PROJECT_DIR/bin/nitrofan"
 ln -sf "$PROJECT_DIR/bin/nitrofan" /usr/local/bin/nitrofan
 rm -f /usr/local/bin/nitro-fan /usr/local/bin/nitrosense 2>/dev/null || true
 
-echo -e "${BLUE}[4/5] Installing desktop application launcher...${NC}"
+echo -e "${BLUE}[4/5] Installing desktop launcher and application icons...${NC}"
+# Install icons into system icon theme
+mkdir -p /usr/share/icons/hicolor/scalable/apps
+cp "$PROJECT_DIR/assets/nitrofan.svg" /usr/share/icons/hicolor/scalable/apps/nitrofan.svg 2>/dev/null || true
+for s in 16 24 32 48 64 128 256 512; do
+    if [ -f "$PROJECT_DIR/assets/nitrofan_${s}.png" ]; then
+        mkdir -p "/usr/share/icons/hicolor/${s}x${s}/apps"
+        cp "$PROJECT_DIR/assets/nitrofan_${s}.png" "/usr/share/icons/hicolor/${s}x${s}/apps/nitrofan.png" 2>/dev/null || true
+    fi
+done
+gtk-update-icon-cache -f -t /usr/share/icons/hicolor 2>/dev/null || true
+
 DESKTOP_FILE="$PROJECT_DIR/nitrofan.desktop"
 cat << EOF > "$DESKTOP_FILE"
 [Desktop Entry]
 Name=Fan Control Center
 Comment=Hardware fan speed and cooling management for Linux
 Exec=$PROJECT_DIR/bin/nitrofan gui
-Icon=$PROJECT_DIR/assets/nitrofan.svg
+Icon=nitrofan
 Terminal=false
 Type=Application
+StartupWMClass=nitrofan
 Categories=System;Settings;HardwareSettings;
 Keywords=fan;cooling;thermal;fan-control;
 EOF

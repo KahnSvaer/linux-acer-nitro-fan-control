@@ -16,6 +16,7 @@ from PyQt6.QtGui import (
     QBrush,
     QColor,
     QFont,
+    QIcon,
     QLinearGradient,
     QPainter,
     QPalette,
@@ -30,8 +31,10 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMainWindow,
+    QMenu,
     QPushButton,
     QSlider,
+    QSystemTrayIcon,
     QVBoxLayout,
     QWidget,
 )
@@ -39,6 +42,18 @@ from PyQt6.QtWidgets import (
 # Add parent directory for CLI telemetry functions
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from cli.nitro_fan import is_driver_loaded, read_telemetry, set_fan_speed, PLATFORM_PROFILE
+
+def get_app_icon():
+    icon = QIcon()
+    assets_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets")
+    svg_path = os.path.join(assets_dir, "nitrofan.svg")
+    if os.path.exists(svg_path):
+        icon.addFile(svg_path)
+    for s in (16, 24, 32, 48, 64, 128, 256, 512):
+        png_path = os.path.join(assets_dir, f"nitrofan_{s}.png")
+        if os.path.exists(png_path):
+            icon.addFile(png_path)
+    return icon
 
 class CircularFanGauge(QWidget):
     """
@@ -264,8 +279,12 @@ class NitroFanWindow(QMainWindow):
         self.active_mode = "auto"
         self.sync_fans = True
 
+        self.app_icon = get_app_icon()
+        self.setWindowIcon(self.app_icon)
+
         self._init_theme()
         self._init_ui()
+        self._init_tray()
 
         # High-speed live telemetry update timer (200ms = 5 updates/sec)
         self.poll_timer = QTimer(self)
@@ -678,10 +697,56 @@ class NitroFanWindow(QMainWindow):
             if hasattr(self, "safety_alert_frame") and self.safety_alert_frame.isVisible():
                 self.safety_alert_frame.hide()
 
+    def _init_tray(self):
+        if QSystemTrayIcon.isSystemTrayAvailable():
+            self.tray_icon = QSystemTrayIcon(self.app_icon, self)
+            self.tray_icon.setToolTip("Fan Control Center")
+
+            tray_menu = QMenu()
+            action_show = tray_menu.addAction("Open Fan Control Center")
+            action_show.triggered.connect(self._show_and_raise)
+            tray_menu.addSeparator()
+            action_auto = tray_menu.addAction("Mode: Auto (Firmware Curve)")
+            action_auto.triggered.connect(lambda: self._switch_mode("auto"))
+            action_max = tray_menu.addAction("Mode: Max Turbo (100%)")
+            action_max.triggered.connect(lambda: self._switch_mode("max"))
+            tray_menu.addSeparator()
+            action_quit = tray_menu.addAction("Quit")
+            action_quit.triggered.connect(QApplication.instance().quit)
+
+            self.tray_icon.setContextMenu(tray_menu)
+            self.tray_icon.activated.connect(self._on_tray_activated)
+            self.tray_icon.show()
+
+    def _show_and_raise(self):
+        self.show()
+        self.raise_()
+        self.activateWindow()
+
+    def _on_tray_activated(self, reason):
+        if reason == QSystemTrayIcon.ActivationReason.Trigger:
+            if self.isVisible():
+                if self.isMinimized():
+                    self.showNormal()
+                else:
+                    self.raise_()
+                    self.activateWindow()
+            else:
+                self.show()
+
 def main():
+    # Ensure process name and desktop file matching for GNOME/Wayland/X11 dock & side tray
+    sys.argv[0] = "nitrofan"
     app = QApplication(sys.argv)
-    app.setApplicationName("FanControlCenter")
+    app.setApplicationName("nitrofan")
+    app.setApplicationDisplayName("Fan Control Center")
+    app.setDesktopFileName("nitrofan")
+
+    icon = get_app_icon()
+    app.setWindowIcon(icon)
+
     win = NitroFanWindow()
+    win.setWindowIcon(icon)
     win.show()
     sys.exit(app.exec())
 
