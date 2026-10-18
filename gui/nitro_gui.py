@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Nitro-Fan GUI (NitroSense Edition)
-----------------------------------
-A high-fidelity Acer NitroSense desktop interface for Linux.
-Provides custom circular speedometers, live telemetry, and intuitive fan controls.
+Fan Control Center
+------------------
+Modern, open-source Linux fan and hardware cooling manager.
+Provides tachometer gauges, real-time thermal telemetry, and hardware-safe fan controls.
 """
 
 import math
@@ -41,7 +41,7 @@ from cli.nitro_fan import is_driver_loaded, read_telemetry, set_fan_speed, PLATF
 
 class CircularFanGauge(QWidget):
     """
-    Custom-drawn Circular Tachometer Gauge matching Acer NitroSense.
+    Custom-drawn Circular Tachometer Gauge.
     Renders anti-aliased circular progress arcs, RPM readouts, and temperature badges.
     """
     def __init__(self, title="CPU FAN", max_rpm=7000, parent=None):
@@ -201,16 +201,15 @@ class CircularFanGauge(QWidget):
         painter.end()
 
 
-class NitroSenseWindow(QMainWindow):
+class NitroFanWindow(QMainWindow):
     """
-    Main NitroSense UI Window.
-    Replicates the signature Acer gaming aesthetic with high contrast, brushed metal cards,
-    and responsive hardware control buttons.
+    Main NitroFan UI Window.
+    Provides custom tachometer gauges, thermal monitoring, and responsive fan controls.
     """
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("NitroSense™")
-        self.setFixedSize(620, 720)
+        self.setWindowTitle("Fan Control Center")
+        self.setFixedSize(620, 740)
         self.active_mode = "auto"
         self.sync_fans = True
 
@@ -257,19 +256,19 @@ class NitroSenseWindow(QMainWindow):
         header = QHBoxLayout()
         header.setContentsMargins(0, 0, 0, 2)
 
-        logo_box = QHBoxLayout()
-        logo_box.setSpacing(0)
-        logo_part1 = QLabel("NITRO")
-        logo_part1.setFont(QFont("Arial", 22, QFont.Weight.Bold))
-        logo_part1.setStyleSheet("color: #FFFFFF; letter-spacing: 2px;")
+        title_box = QVBoxLayout()
+        title_box.setSpacing(2)
+        title_label = QLabel("Fan Control Center")
+        title_label.setFont(QFont("Arial", 16, QFont.Weight.Bold))
+        title_label.setStyleSheet("color: #F0F4F8; letter-spacing: 0.5px;")
 
-        logo_part2 = QLabel("SENSE")
-        logo_part2.setFont(QFont("Arial", 22, QFont.Weight.Bold))
-        logo_part2.setStyleSheet("color: #FF1A1A; letter-spacing: 2px;")
+        sub_label = QLabel("Independent Hardware Cooling & Thermal Monitor")
+        sub_label.setFont(QFont("Arial", 9))
+        sub_label.setStyleSheet("color: #718096;")
 
-        logo_box.addWidget(logo_part1)
-        logo_box.addWidget(logo_part2)
-        header.addLayout(logo_box)
+        title_box.addWidget(title_label)
+        title_box.addWidget(sub_label)
+        header.addLayout(title_box)
 
         header.addStretch()
 
@@ -278,11 +277,11 @@ class NitroSenseWindow(QMainWindow):
         badge_box.setSpacing(2)
         badge_box.setAlignment(Qt.AlignmentFlag.AlignRight)
 
-        model_label = QLabel("ACER NITRO V 15")
+        model_label = QLabel("SYSTEM: ANV15-41")
         model_label.setFont(QFont("Arial", 9, QFont.Weight.Bold))
         model_label.setStyleSheet("color: #7A8090; letter-spacing: 1px;")
 
-        self.driver_badge = QLabel("● WMI DRIVER ACTIVE")
+        self.driver_badge = QLabel("● DRIVER ACTIVE")
         self.driver_badge.setFont(QFont("Arial", 9, QFont.Weight.Bold))
         self.driver_badge.setStyleSheet("color: #00FF66; letter-spacing: 0.5px;")
 
@@ -330,6 +329,23 @@ class NitroSenseWindow(QMainWindow):
         gauges_layout.addWidget(self.gpu_gauge)
         main_layout.addWidget(gauges_frame)
 
+        # ---------------- Safety Alert Banner (Hardware Thermal Guard) ----------------
+        self.safety_alert_frame = QFrame()
+        self.safety_alert_frame.setStyleSheet("""
+            QFrame {
+                background-color: #2D1A10;
+                border: 1px solid #FF8C00;
+                border-radius: 8px;
+            }
+        """)
+        alert_layout = QHBoxLayout(self.safety_alert_frame)
+        alert_layout.setContentsMargins(12, 6, 12, 6)
+        self.safety_alert_label = QLabel("🛡️ Thermal Safeguard Active: Elevated fan speeds to protect hardware from high temps.")
+        self.safety_alert_label.setStyleSheet("color: #FFA726; font-size: 11px; font-weight: bold;")
+        alert_layout.addWidget(self.safety_alert_label)
+        self.safety_alert_frame.hide()
+        main_layout.addWidget(self.safety_alert_frame)
+
         # ---------------- 4. Custom Manual Fan Speed Sliders ----------------
         self.custom_card = QFrame()
         self.custom_card.setProperty("class", "card")
@@ -339,7 +355,7 @@ class NitroSenseWindow(QMainWindow):
 
         # Header for Custom section
         custom_header = QHBoxLayout()
-        sec_title = QLabel("MANUAL FAN SPEED TUNING")
+        sec_title = QLabel("MANUAL FAN SPEED TUNING (SAFE RANGE: 25% - 100%)")
         sec_title.setFont(QFont("Arial", 10, QFont.Weight.Bold))
         sec_title.setStyleSheet("color: #8C92A4; letter-spacing: 0.5px;")
         custom_header.addWidget(sec_title)
@@ -364,7 +380,7 @@ class NitroSenseWindow(QMainWindow):
         custom_layout.addLayout(cpu_box)
 
         self.slider_cpu = QSlider(Qt.Orientation.Horizontal)
-        self.slider_cpu.setRange(20, 100)
+        self.slider_cpu.setRange(25, 100)
         self.slider_cpu.setValue(60)
         self.slider_cpu.setStyleSheet(self._slider_stylesheet())
         self.slider_cpu.valueChanged.connect(self._on_cpu_slider_changed)
@@ -382,7 +398,7 @@ class NitroSenseWindow(QMainWindow):
         custom_layout.addLayout(gpu_box)
 
         self.slider_gpu = QSlider(Qt.Orientation.Horizontal)
-        self.slider_gpu.setRange(20, 100)
+        self.slider_gpu.setRange(25, 100)
         self.slider_gpu.setValue(60)
         self.slider_gpu.setStyleSheet(self._slider_stylesheet())
         self.slider_gpu.valueChanged.connect(self._on_gpu_slider_changed)
@@ -391,7 +407,7 @@ class NitroSenseWindow(QMainWindow):
         # Quick Preset Buttons
         presets_layout = QHBoxLayout()
         presets_layout.setSpacing(8)
-        for pct, name in [(40, "Quiet 40%"), (60, "Normal 60%"), (80, "Gaming 80%"), (100, "Max 100%")]:
+        for pct, name in [(40, "Quiet 40%"), (60, "Balanced 60%"), (80, "Heavy Load 80%"), (100, "Max Turbo 100%")]:
             btn = QPushButton(name)
             btn.setFixedHeight(28)
             btn.setStyleSheet("""
@@ -592,12 +608,28 @@ class NitroSenseWindow(QMainWindow):
             self.active_mode = "auto"
             self._update_button_styles()
 
-        self.status_footer.setText(f"Active Mode: {mode_str} | Platform Profile: {t['profile']} | Acer WMI: Active")
+        self.status_footer.setText(f"Active Mode: {mode_str} | Platform Profile: {t['profile']} | Driver: Active")
+
+        # Hardware Thermal Safeguard:
+        # If CPU or GPU temperature reaches dangerous threshold (>= 88°C CPU or >= 85°C GPU)
+        # while fan speeds are manually held low (< 75%), automatically elevate fans to protect silicon!
+        max_temp = max(t["cpu_temp"], t["gpu_temp"])
+        if max_temp >= 88 and self.active_mode == "custom":
+            c_val = self.slider_cpu.value()
+            g_val = self.slider_gpu.value()
+            if c_val < 75 or g_val < 75:
+                self.slider_cpu.setValue(85)
+                self.slider_gpu.setValue(85)
+                set_fan_speed(85, 85)
+                self.safety_alert_frame.show()
+        elif max_temp <= 80:
+            if hasattr(self, "safety_alert_frame") and self.safety_alert_frame.isVisible():
+                self.safety_alert_frame.hide()
 
 def main():
     app = QApplication(sys.argv)
-    app.setApplicationName("NitroSense")
-    win = NitroSenseWindow()
+    app.setApplicationName("FanControlCenter")
+    win = NitroFanWindow()
     win.show()
     sys.exit(app.exec())
 

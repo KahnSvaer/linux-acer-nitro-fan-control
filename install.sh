@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Acer Nitro Fan Management System Installer
+# Hardware Fan Management System Installer
 # Sets up driver, udev rules for passwordless control, CLI, and GUI shortcuts
 
 set -e
@@ -13,7 +13,7 @@ NC='\033[0m'
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo -e "${BLUE}====================================================${NC}"
-echo -e "${BLUE}       Acer Nitro Fan Management Installer          ${NC}"
+echo -e "${BLUE}        Hardware Fan Management Installer           ${NC}"
 echo -e "${BLUE}====================================================${NC}"
 
 if [ "$EUID" -ne 0 ]; then
@@ -52,22 +52,22 @@ fi
 echo -e "${BLUE}[3/5] Installing CLI binary in /usr/local/bin...${NC}"
 chmod +x "$PROJECT_DIR/bin/nitro-fan"
 ln -sf "$PROJECT_DIR/bin/nitro-fan" /usr/local/bin/nitro-fan
-ln -sf "$PROJECT_DIR/bin/nitro-fan" /usr/local/bin/nitrosense
+rm -f /usr/local/bin/nitrosense 2>/dev/null || true
 
 echo -e "${BLUE}[4/5] Installing desktop application launcher...${NC}"
 DESKTOP_FILE="$PROJECT_DIR/nitro-fan.desktop"
 cat << EOF > "$DESKTOP_FILE"
 [Desktop Entry]
-Name=Acer Nitro Fan Control
-Comment=Hardware fan speed and cooling management for Acer Nitro laptops
+Name=Fan Control Center
+Comment=Hardware fan speed and cooling management for Linux
 Exec=$PROJECT_DIR/bin/nitro-fan gui
 Icon=$PROJECT_DIR/assets/nitro-fan.svg
 Terminal=false
 Type=Application
 Categories=System;Settings;HardwareSettings;
-Keywords=nitro;fan;cooling;thermal;acer;
+Keywords=fan;cooling;thermal;fan-control;
 EOF
-cp "$DESKTOP_FILE" /usr/share/applications/
+cp "$DESKTOP_FILE" /usr/share/applications/ 2>/dev/null || true
 update-desktop-database /usr/share/applications/ 2>/dev/null || true
 
 echo -e "${BLUE}[5/5] Ensuring kernel driver is active...${NC}"
@@ -76,7 +76,7 @@ modprobe -r acer_wmi 2>/dev/null || true
 modprobe linuwu_sense 2>/dev/null || true
 
 echo -e "${GREEN}====================================================${NC}"
-echo -e "${GREEN}   [✓] Acer Nitro Fan Management Successfully Installed! ${NC}"
+echo -e "${GREEN}   [✓] Fan Management Suite Successfully Installed! ${NC}"
 echo -e "${GREEN}====================================================${NC}"
 echo ""
 echo "Quick Commands:"
@@ -85,5 +85,5 @@ echo "  nitro-fan max          # Force 100% Turbo cooling"
 echo "  nitro-fan auto         # Restore automatic BIOS fan curves"
 echo "  nitro-fan set 75 75    # Custom fan percentage"
 echo "  nitro-fan watch        # Live terminal monitoring dashboard"
-echo "  nitro-fan gui          # Launch modern graphical user interface"
+echo "  nitro-fan gui          # Launch graphical user interface"
 echo ""

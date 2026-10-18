@@ -1,20 +1,30 @@
-# Acer Nitro Fan Management (`nitro-fan`)
+# Fan Control Suite for Linux (`nitro-fan`)
 
-A dedicated fan speed and cooling management suite for **Acer Nitro V 15** (`ANV15-41`, `ANV15-51`) and modern Acer Nitro laptops running Linux.
+A dedicated open-source cooling management suite for modern gaming laptops on Linux.
 
-Unlike legacy utilities that poke raw bytes into physical Embedded Controller (EC) memory, this project interfaces with the official **Acer ACPI-WMI** methods (`AcerGamingFunction`) used by official Windows NitroSense.
+> **Disclaimer:** Independent community open-source project. Not affiliated with, endorsed by, or associated with Acer Inc. or its subsidiaries. All product names, logos, and brands are property of their respective owners.
+
+Unlike legacy utilities that poke raw bytes into physical Embedded Controller (EC) memory, this project interfaces with standardized ACPI-WMI kernel methods (`linuwu_sense`).
+
+---
+
+## Safety Features
+
+- **Motor Stall Protection**: Custom manual fan speeds are clamped to a safe minimum of 25% to prevent motor stalling and heat buildup.
+- **Thermal Safeguard**: Active watchdog elevates fan speeds if CPU or GPU temperatures reach critical thresholds (≥ 88°C) while in custom mode.
+- **Zero Invasive Modifications**: No battery charge limit tampering, no keyboard backlight NVRAM poking, no raw physical EC register writes. Strictly 100% cooling and fan control.
+- **Fail-Safe Firmware Mode**: Setting fans to Auto (`nitro-fan auto`) immediately returns full control to native motherboard BIOS thermal curves.
 
 ---
 
 ## Features
 
-- **Direct WMI Fan Control**: Max Turbo (100%), Automatic (BIOS Managed), and Custom fan speeds.
-- **Pure Fan Focus**: Zero battery limiter or keyboard backlight clutter—100% cooling & thermal performance.
+- **Direct ACPI-WMI Fan Control**: Max Turbo (100%), Automatic (BIOS Managed), and Custom fan speeds.
 - **DKMS Kernel Driver**: Pre-configured `linuwu-sense` module automatically rebuilt across Linux kernel updates.
 - **Passwordless Control**: Udev rules grant instant write access without entering your `sudo` password.
 - **Rich CLI**: Status inspection, real-time live terminal dashboard (`watch`), and quick fan presets.
-- **Modern PyQt6 GUI**: Sleek carbon dark theme, live RPM meters, temperature monitoring, and interactive sliders.
-- **Desktop Entry**: Launches directly from your desktop application launcher.
+- **PyQt6 GUI (Fan Control Center)**: Dual circular tachometers, live RPM meters, temperature badges, and interactive sliders.
+- **Desktop Entry**: Launches directly from your system application menu.
 
 ---
 
@@ -30,7 +40,7 @@ nitro-fan max
 # Return to automatic BIOS fan curve
 nitro-fan auto
 
-# Set custom fan speeds (CPU % and GPU %)
+# Set custom fan speeds (safe range: 25% - 100%)
 nitro-fan set 75 65
 
 # Launch real-time live updating terminal dashboard
@@ -39,8 +49,6 @@ nitro-fan watch
 # Launch the Graphical User Interface
 nitro-fan gui
 ```
-
-> **Note:** The `nitrosense` command is also aliased to `nitro-fan`.
 
 ---
 
@@ -54,9 +62,10 @@ nitro-fan gui
 
 Features:
 - Real-time CPU & GPU Fan RPM readouts
-- Package and thermal sensor temperatures with threshold color-coding
-- One-click presets: **Auto**, **Quiet (40%)**, **Balanced (65%)**, **Heavy (85%)**, and **Max Turbo (100%)**
-- Dual sliders for independent CPU and GPU fan percentage tuning
+- Circular tachometers with 30 FPS smooth needle animation
+- Hardware thermal protection watchdog
+- One-click presets: **Auto**, **Quiet (40%)**, **Balanced (60%)**, **Heavy Load (80%)**, and **Max Turbo (100%)**
+- Dual sliders for independent or synchronized CPU and GPU fan percentage tuning
 
 ---
 
@@ -65,7 +74,7 @@ Features:
 ```text
 Linux-NitroSense/
 ├── assets/
-│   └── nitro-fan.svg        # Scalable application icon
+│   └── nitro-fan.svg        # Generic vector fan icon
 ├── bin/
 │   └── nitro-fan            # Unified CLI & GUI launcher
 ├── cli/
@@ -73,7 +82,7 @@ Linux-NitroSense/
 ├── driver/
 │   └── linuwu-sense/        # Submodule for ACPI-WMI kernel driver (DKMS)
 ├── gui/
-│   └── nitro_gui.py         # Modern PyQt6 graphical user interface
+│   └── nitro_gui.py         # PyQt6 graphical user interface
 ├── install.sh               # Complete setup script (DKMS, udev rules, desktop launcher)
 ├── nitro-fan.desktop        # Application menu shortcut
 └── README.md
