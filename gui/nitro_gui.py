@@ -86,16 +86,20 @@ class CircularFanGauge(QWidget):
         h = self.height()
         size = min(w, h - 35)
         cx = w / 2.0
-        cy = size / 2.0 + 5.0
-        radius = size / 2.0 - 14.0
+        cy = size / 2.0 + 6.0
+        radius = size / 2.0 - 12.0
 
-        # Draw outer subtle metallic ring
+        # Current live ratio and percentage
+        ratio = max(0.0, min(1.0, self.display_rpm / max(1, self.max_rpm)))
+        cur_pct = int(round(ratio * 100))
+
+        # 1. Draw outer subtle metallic ring
         outer_pen = QPen(QColor(40, 42, 50), 2)
         painter.setPen(outer_pen)
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawEllipse(QPointF(cx, cy), radius + 6, radius + 6)
 
-        # Draw inner face with radial gradient
+        # 2. Draw inner face with radial gradient
         radial = QRadialGradient(QPointF(cx, cy), radius)
         radial.setColorAt(0.0, QColor(24, 25, 30))
         radial.setColorAt(0.85, QColor(16, 17, 21))
@@ -104,69 +108,148 @@ class CircularFanGauge(QWidget):
         painter.setBrush(QBrush(radial))
         painter.drawEllipse(QPointF(cx, cy), radius, radius)
 
-        # Gauge arc coordinates: 270 degree sweep from 135 deg to 405 deg
-        arc_rect = QRectF(cx - radius + 4, cy - radius + 4, (radius - 4) * 2, (radius - 4) * 2)
-        start_angle = 225.0  # Qt 3 o'clock is 0; 225 deg starts at bottom-left (135 in standard polar)
-        total_span = -270.0  # Clockwise sweep
+        # 3. Gauge arc coordinates: 270 degree sweep from 225 deg (bottom-left) to -45 deg (bottom-right)
+        start_angle = 225.0
+        total_span = -270.0
+        track_r = radius - 4
+        arc_rect = QRectF(cx - track_r, cy - track_r, track_r * 2, track_r * 2)
 
         # Background track arc
-        track_pen = QPen(QColor(35, 38, 46), 8, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap)
+        track_pen = QPen(QColor(32, 35, 43), 6, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap)
         painter.setPen(track_pen)
         painter.drawArc(arc_rect, int(start_angle * 16), int(total_span * 16))
 
-        # Active value arc
-        ratio = max(0.0, min(1.0, self.display_rpm / self.max_rpm))
+        # Active value arc with dynamic color gradient
         active_span = total_span * ratio
-
         if ratio > 0.01:
             active_pen = QPen()
-            active_pen.setWidth(8)
+            active_pen.setWidth(6)
             active_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
 
-            # Gradient from orange-red to hot crimson
             grad = QLinearGradient(arc_rect.topLeft(), arc_rect.bottomRight())
-            if ratio < 0.5:
-                grad.setColorAt(0.0, QColor(255, 80, 20))
-                grad.setColorAt(1.0, QColor(255, 30, 30))
+            if ratio < 0.45:
+                grad.setColorAt(0.0, QColor(0, 230, 118))
+                grad.setColorAt(1.0, QColor(0, 200, 160))
+            elif ratio < 0.75:
+                grad.setColorAt(0.0, QColor(255, 179, 0))
+                grad.setColorAt(1.0, QColor(255, 100, 0))
             else:
-                grad.setColorAt(0.0, QColor(255, 40, 40))
-                grad.setColorAt(1.0, QColor(230, 0, 15))
+                grad.setColorAt(0.0, QColor(255, 60, 40))
+                grad.setColorAt(1.0, QColor(230, 0, 20))
             active_pen.setBrush(QBrush(grad))
             painter.setPen(active_pen)
             painter.drawArc(arc_rect, int(start_angle * 16), int(active_span * 16))
 
-        # Perimeter tick marks
-        painter.save()
-        painter.translate(cx, cy)
-        painter.rotate(45)  # Align with start angle
-        for i in range(11):
-            tick_pen = QPen(QColor(70, 75, 90) if i % 2 == 0 else QColor(45, 48, 58), 1.5 if i % 2 == 0 else 1)
-            painter.setPen(tick_pen)
-            painter.drawLine(int(radius - 10), 0, int(radius - 5), 0)
-            painter.rotate(27)
-        painter.restore()
+        # 4. Calibrated Scale Ticks (like mm / cm marks on a ruler)
+        for i in range(51):  # Every 2% from 0% to 100%
+            tick_pct = i * 2
+            theta = start_angle + total_span * (tick_pct / 100.0)
+            rad = math.radians(theta)
+            cos_t = math.cos(rad)
+            sin_t = math.sin(rad)
 
-        # Center Text: Title
-        painter.setPen(QColor(160, 165, 180))
+            is_reached = (tick_pct <= cur_pct)
+
+            if tick_pct % 20 == 0:
+                # Major tick (0%, 20%, 40%, 60%, 80%, 100%)
+                r1 = radius - 15
+                r2 = radius - 3
+                pen_color = QColor(255, 50, 50) if is_reached else QColor(100, 108, 125)
+                pen_w = 2.0
+            elif tick_pct % 10 == 0:
+                # Medium tick (10%, 30%, 50%, 70%, 90%)
+                r1 = radius - 11
+                r2 = radius - 4
+                pen_color = QColor(255, 80, 80) if is_reached else QColor(60, 66, 80)
+                pen_w = 1.5
+            else:
+                # Minor tick (every 2%)
+                r1 = radius - 8
+                r2 = radius - 4
+                pen_color = QColor(255, 120, 120) if is_reached else QColor(40, 44, 55)
+                pen_w = 1.0
+
+            painter.setPen(QPen(pen_color, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+            painter.drawLine(
+                QPointF(cx + r1 * cos_t, cy - r1 * sin_t),
+                QPointF(cx + r2 * cos_t, cy - r2 * sin_t)
+            )
+
+        # 5. Scale Percentage Numbers (0%, 20%, 40%, 60%, 80%, 100% on the scale dial)
+        font_scale = QFont("Arial", 7, QFont.Weight.Bold)
+        painter.setFont(font_scale)
+        for p in (0, 20, 40, 60, 80, 100):
+            theta = start_angle + total_span * (p / 100.0)
+            rad = math.radians(theta)
+            r_lbl = radius - 26
+            lx = cx + r_lbl * math.cos(rad)
+            ly = cy - r_lbl * math.sin(rad)
+
+            if p <= cur_pct:
+                painter.setPen(QColor(255, 255, 255))
+            else:
+                painter.setPen(QColor(85, 92, 110))
+
+            painter.drawText(QRectF(lx - 16, ly - 8, 32, 16), Qt.AlignmentFlag.AlignCenter, f"{p}%")
+
+        # 6. Active Pointer / Needle Pip on Track
+        if ratio > 0.01:
+            theta_now = start_angle + total_span * ratio
+            rad_now = math.radians(theta_now)
+            pip_r = radius - 4
+            px = cx + pip_r * math.cos(rad_now)
+            py = cy - pip_r * math.sin(rad_now)
+
+            # Outer white ring with red core
+            painter.setPen(QPen(QColor(255, 255, 255), 1.5))
+            painter.setBrush(QBrush(QColor(255, 30, 30)))
+            painter.drawEllipse(QPointF(px, py), 4.0, 4.0)
+
+        # 7. Center Text: Title
+        painter.setPen(QColor(150, 155, 170))
         font_title = QFont("Arial", 10, QFont.Weight.Bold)
         font_title.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 1.0)
         painter.setFont(font_title)
         painter.drawText(QRectF(cx - 80, cy - 42, 160, 20), Qt.AlignmentFlag.AlignCenter, self.title)
 
-        # Center Text: Large RPM Value
+        # 8. Center Text: Large RPM Value
         painter.setPen(QColor(255, 255, 255))
         font_rpm = QFont("Arial", 22, QFont.Weight.Bold)
         painter.setFont(font_rpm)
         rpm_str = f"{int(self.display_rpm):,}"
-        painter.drawText(QRectF(cx - 90, cy - 18, 180, 36), Qt.AlignmentFlag.AlignCenter, rpm_str)
+        painter.drawText(QRectF(cx - 90, cy - 20, 180, 34), Qt.AlignmentFlag.AlignCenter, rpm_str)
 
-        # Center Text: "RPM" Unit
-        painter.setPen(QColor(110, 115, 130))
-        font_unit = QFont("Arial", 9, QFont.Weight.Bold)
-        painter.setFont(font_unit)
-        painter.drawText(QRectF(cx - 50, cy + 18, 100, 18), Qt.AlignmentFlag.AlignCenter, "RPM")
+        # 9. Center Text: Live Percentage Indicator Badge
+        pct_w = 82.0
+        pct_h = 22.0
+        pct_x = cx - pct_w / 2.0
+        pct_y = cy + 16.0
+        pct_rect = QRectF(pct_x, pct_y, pct_w, pct_h)
 
-        # Bottom Temperature Pill
+        if cur_pct < 45:
+            badge_color = QColor(0, 230, 118)
+        elif cur_pct < 75:
+            badge_color = QColor(255, 179, 0)
+        else:
+            badge_color = QColor(255, 50, 50)
+
+        # Badge pill background
+        painter.setPen(QPen(QColor(38, 42, 52), 1))
+        painter.setBrush(QBrush(QColor(18, 20, 26)))
+        painter.drawRoundedRect(pct_rect, 11.0, 11.0)
+
+        # Status dot inside percentage badge
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(badge_color))
+        painter.drawEllipse(QPointF(pct_x + 13, pct_y + 11), 3.5, 3.5)
+
+        # Percentage text
+        painter.setPen(badge_color)
+        font_pct = QFont("Arial", 9, QFont.Weight.Bold)
+        painter.setFont(font_pct)
+        painter.drawText(QRectF(pct_x + 18, pct_y, pct_w - 22, pct_h), Qt.AlignmentFlag.AlignCenter, f"{cur_pct}%")
+
+        # 10. Bottom Temperature Pill
         pill_w = 110.0
         pill_h = 26.0
         pill_x = cx - pill_w / 2.0
@@ -322,8 +405,8 @@ class NitroFanWindow(QMainWindow):
         gauges_layout.setContentsMargins(10, 10, 10, 14)
         gauges_layout.setSpacing(10)
 
-        self.cpu_gauge = CircularFanGauge("CPU FAN", max_rpm=7000)
-        self.gpu_gauge = CircularFanGauge("GPU FAN", max_rpm=7000)
+        self.cpu_gauge = CircularFanGauge("CPU FAN", max_rpm=6800)
+        self.gpu_gauge = CircularFanGauge("GPU FAN", max_rpm=6400)
 
         gauges_layout.addWidget(self.cpu_gauge)
         gauges_layout.addWidget(self.gpu_gauge)
