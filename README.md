@@ -6,6 +6,8 @@ A dedicated open-source cooling management suite for modern gaming laptops on Li
 
 Unlike legacy utilities that poke raw bytes into physical Embedded Controller (EC) memory, this project interfaces with standardized ACPI-WMI kernel methods (`linuwu_sense`).
 
+NOTE: Personally confirmed working on:
+- ANV15-41 
 ---
 
 ## Safety Features
